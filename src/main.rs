@@ -1,5 +1,4 @@
 use clap::Parser;
-use libc;
 use simple_error::bail;
 use simple_error::SimpleError;
 use std::collections::HashMap;
