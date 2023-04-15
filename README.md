@@ -1,0 +1,2 @@
+# samcut
+cut for sam

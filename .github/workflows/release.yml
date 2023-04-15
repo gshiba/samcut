@@ -1,0 +1,76 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - v[0-9]+.*
+
+jobs:
+
+  # debug:
+  #   name: Debug
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Dump env
+  #       run: env | sort
+  #     - name: Dump GitHub context
+  #       env:
+  #         GITHUB_CONTEXT: ${{ toJson(github) }}
+  #       run: echo "$GITHUB_CONTEXT"
+
+  build-and-upload-assets:
+    name: Build and Upload Assets
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Build release binary
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --release
+
+    - name: Check version matches tag
+      run: |
+        VERSION_OUTPUT=$(./target/release/samcut -V | cut -d ' ' -f 2)
+        EXPECTED_OUTPUT=$(echo ${{ github.ref_name }} | cut -c 2-)
+        if [ "$VERSION_OUTPUT" = "$EXPECTED_OUTPUT" ]; then
+          echo "Version check: OK $VERSION_OUTPUT"
+        else
+          echo "Version check: FAIL $VERSION_OUTPUT != $EXPECTED_OUTPUT"
+          exit 1
+        fi
+
+    - name: Install coreutils for macOS
+      if: matrix.os == 'macOS-latest'
+      run: brew install coreutils
+
+    - name: Create tarball
+      run: |
+        SUFFIX=${{ github.ref_name }}-${{ matrix.os }}
+        mkdir -p samcut-$SUFFIX
+        cp target/release/samcut samcut-$SUFFIX/
+        tar czvf samcut-$SUFFIX.tar.gz samcut-$SUFFIX/
+        sha256sum samcut-$SUFFIX.tar.gz
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: samcut-${{ github.ref_name }}-${{ matrix.os }}.tar.gz
