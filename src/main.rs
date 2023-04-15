@@ -1,4 +1,5 @@
 use clap::Parser;
+use libc;
 use simple_error::bail;
 use simple_error::SimpleError;
 use std::collections::HashMap;
@@ -6,7 +7,6 @@ use std::error::Error;
 use std::io;
 use std::io::BufRead;
 use std::process;
-use libc;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about, verbatim_doc_comment)]
