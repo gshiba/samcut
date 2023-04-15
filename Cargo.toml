@@ -1,6 +1,6 @@
 [package]
 name = "samcut"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Gosuke Shibahara"]
 
@@ -8,5 +8,6 @@ authors = ["Gosuke Shibahara"]
 
 [dependencies]
 clap = { version = "4.2.1", features = ["derive"] }
+libc = "0.2"
 regex = "1"
 simple-error = "0"

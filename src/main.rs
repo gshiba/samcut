@@ -11,7 +11,7 @@ use std::process;
 #[command(author, version, about, long_about, verbatim_doc_comment)]
 /// samcut is cut for sam: `samtools view in.bam | samcut`. See --help for examples.
 ///
-/// Print the standard 11 columns (rname to qual) with a header row:
+/// Print the standard 11 columns (qname, flag, ..., qual) with a header row:
 ///     $ samtools view in.bam | samcut -H
 ///
 /// Print qname, cigar, pos, and tlen only:
@@ -20,8 +20,12 @@ use std::process;
 /// Also print a specific tag:
 ///     $ samtools view in.bam | samcut qname cigar pos tlen MD
 ///
+/// Separate flag into columns for each bit:
+///     $ samtools view in.bam | samcut -H qname flagss flags
+///
 /// Get a histogram of (read1, secondary, supplementary) flag values:
 ///     $ samtools view in.bam | samcut read1 secondary supplementary | sort | uniq -c
+///
 pub struct Args {
     /// Print a header row with column names
     #[arg(short = 'H', long)]
@@ -31,7 +35,7 @@ pub struct Args {
     #[arg(short, long, default_value = "\t")]
     delim: char,
 
-    /// String to fill missing values with
+    /// String to fill missing values with (tags are optional and can be missing)
     #[arg(short = 'i', long, default_value = ".")]
     fill: String,
 
@@ -39,23 +43,23 @@ pub struct Args {
     /// If not supplied, `std` is used.
     ///
     /// Standard keys:
-    ///     key        description
-    ///     -----------------------------------------------------------------------
-    ///     qname      query template name
-    ///     flag       flag
-    ///     rname      reference sequence name
-    ///     pos        1-based leftmost mapping
-    ///     mapq       mapping quality
-    ///     cigar      cigar string
-    ///     rnext      ref. name of the mate/next read
-    ///     pnext      position of the mat/next reas
-    ///     tlen       observed template length
-    ///     seq        segment sequence
-    ///     qual       ascii of phred-scaled base quality+33
+    ///     key              description
+    ///     ----------------------------------------------------------------------------
+    ///     qname            query template name
+    ///     flag             bitwise flag
+    ///     rname            reference sequence name
+    ///     pos              1-based leftmost mapping position
+    ///     mapq             mapping quality
+    ///     cigar            cigar string
+    ///     rnext            ref. name of the mate/next read
+    ///     pnext            position of the mat/next read
+    ///     tlen             observed template length
+    ///     seq              segment sequence
+    ///     qual             ascii of phred-scaled base quality+33
     ///
     /// Flag keys:
     ///     key              description
-    ///     -----------------------------------------------------------------------
+    ///     ----------------------------------------------------------------------------
     ///     paired           paired-end (or multiple-segment) sequencing technology
     ///     proper_pair      each segment properly aligned according to the aligner
     ///     unmap            segment unmapped
@@ -70,10 +74,13 @@ pub struct Args {
     ///     supplementary    supplementary alignment
     ///
     /// Speical keys:
-    ///     key        description
-    ///     -----------------------------------------------------------------------
-    ///     n          One-based index for the input stream
-    ///     std        The first 9 columns
+    ///     key              description
+    ///     ----------------------------------------------------------------------------
+    ///     n                One-based index for the input stream
+    ///     std              Expands to the standard 11 columns (qname, flag, ..., qual)
+    ///     flags            Humarn readable flag ("paired,proper_pair,mreverse,read1")
+    ///     flagss           Expands to the 12 flag names (from `samtool flags`)
+    ///
     #[arg(verbatim_doc_comment)]
     fields: Vec<String>,
 }
@@ -95,6 +102,18 @@ fn replace_items(mut v: Vec<String>, search: &str, replace: &[&str]) -> Vec<Stri
     v
 }
 
+#[cfg(unix)]
+fn reset_sigpipe() {
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn reset_sigpipe() {
+    // no-op
+}
+
 fn main() {
     let args = Args::parse();
     if let Err(e) = run(args) {
@@ -104,6 +123,8 @@ fn main() {
 }
 
 fn run(mut args: Args) -> Result<(), Box<dyn Error>> {
+    reset_sigpipe();
+
     let stdin = io::stdin();
     let reader = io::BufReader::new(stdin.lock());
     let lines = reader.lines().filter_map(|line| line.ok());
@@ -112,6 +133,7 @@ fn run(mut args: Args) -> Result<(), Box<dyn Error>> {
         args.fields = Vec::from([String::from("std")])
     }
     args.fields = replace_items(args.fields, "std", &SAM_FIELDS);
+    args.fields = replace_items(args.fields, "flagss", &FLAG_FIELDS);
 
     if args.header {
         println!("{}", args.fields.join(&args.delim.to_string()));
