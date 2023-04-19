@@ -1,5 +1,7 @@
 # samcut
-`samcut` is `cut` for SAM format text.
+`samcut` is `cut` for SAM formatted text.
+
+<img src="docs/ex1.png" width="600">
 
 ## Install
 
