@@ -1,7 +1,7 @@
 # samcut
 `samcut` is `cut` for SAM formatted text.
 
-<img src="docs/ex1.png" width="600">
+<img src="docs/ex1.png" width="800">
 
 ## Install
 
